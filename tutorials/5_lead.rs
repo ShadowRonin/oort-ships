@@ -15,8 +15,6 @@ use oort_api::prelude::*;
 const BULLET_SPEED: f64 = 1000.0; // m/s
 
 pub struct Ship {
-    target_offset_deg: f64,
-    target_offset_deg_increment: f64,
 }
 
 fn degree_to_radian(deg: f64) -> f64 {
@@ -25,43 +23,44 @@ fn degree_to_radian(deg: f64) -> f64 {
 
 impl Ship {
     pub fn new() -> Ship {
-        Ship {
-            target_offset_deg: 5.0,
-            target_offset_deg_increment: 1.0,
-        }
+        Ship {}
     }
 
-    
-
-    fn calc_future_target(&mut self, depth_of_calc: u32) -> Vec2 {
-        let mut i = 0;
-        let mut dp = target() - position();
-        let mut time_to_target = dp.length() / BULLET_SPEED;
-        let mut target_in_time = target() + (target_velocity() * time_to_target);
-        while i < depth_of_calc {
-            i = i + 1;
-            dp = target_in_time - position();
-            time_to_target = dp.length() / BULLET_SPEED;
-            target_in_time = target() + (target_velocity() * time_to_target);
+    fn calculate_p1(&mut self) -> Vec2 {
+        let p0 = target();
+        let v = target_velocity();
+        let d = target() - position(); // distance to target
+        let t = d.length() / BULLET_SPEED; // how long before our bullets reach the target
+        let mut p1 = p0 + v * t;
+        
+        for _ in 0..100 {
+            let d = p1 - position();
+            let t = d.length() / BULLET_SPEED;
+            p1 = p0 + v * t;
         }
-        target_in_time
+
+        p1
     }
 
     pub fn tick(&mut self) {
+        let p1 = self.calculate_p1();
+        let p1_angle = angle_diff(heading(), p1.angle());
+
+        // draws a green line from our ship to the target ship
+        // this is useful to visualize what is happening
         draw_line(position(), target(), 0x00ff00);
-        let dp = target() - position();
-        debug!("distance to target: {}", dp.length());
-        debug!("time to target: {}", dp.length() / BULLET_SPEED);
 
-        let target_in_time = self.calc_future_target(10);
-        let target_in_time_ang = angle_diff(heading(), target_in_time.angle());
-        debug!("target in time: {}", target_in_time);
+        // draws a cyan line to p1 of the target
+        // this is where we should be aiming
+        draw_line(position(), p1, 0x47cbe6);
 
-        draw_line(position(), target_in_time, 0x47cbe6);
-
-        if target_in_time_ang.abs() < degree_to_radian(5.0) {
-            fire(0);
+        // Only fire if we are facing p1
+        // Note: everything is in floats, so p1_angle will never be exactly 0
+        if p1_angle.abs() < degree_to_radian(0.05) {
+            fire(0); // this tell the ship to fire weapon number '0'
         }
-        turn(target_in_time_ang * 100.0);
+
+        // Turn to face the target
+        turn(p1_angle * 100.0);
     }
 }
