@@ -5,62 +5,71 @@
 // Hint: p = p₀ + v₀t + ½at² (the third equation of kinematics)
 //
 // p.s. You can change your username by clicking on it at the top of the page.
+
 use oort_api::prelude::*;
-
-const BULLET_SPEED: f64 = 1000.0; // m/s
-
-pub struct Ship {
-    target_offset_deg: f64,
-    target_offset_deg_increment: f64,
-
-    prev_target_vel: Vec2,
-}
 
 fn degree_to_radian(deg: f64) -> f64 {
     deg * (PI / 180.0)
 }
 
+const BULLET_SPEED: f64 = 1000.0; // m/s
+
+pub struct Ship {
+    prev_v: Vec2, // target v from previous tick
+}
+
 impl Ship {
     pub fn new() -> Ship {
         Ship {
-            target_offset_deg: 5.0,
-            target_offset_deg_increment: 1.0,
-            prev_target_vel: vec2(0.0,0.0),
-            predicted_pf: vec2(0.0,0.0),
+            prev_v: vec2(0.0, 0.0),
         }
     }
 
-    
-
-    fn calc_future_target(&mut self, depth_of_calc: u32) -> Vec2 {
-        // Hint: p = p₀ + v₀t + ½at² (the third equation of kinematics)
+    fn calculate_p1(&mut self) -> Vec2 {
         let p0 = target();
         let v = target_velocity();
-        let mut t = (target() - position()).length() / BULLET_SPEED;
-        let a = self.prev_target_vel - target_velocity();
-        let mut pf = p0 + (v * t) + (0.5 * a * (t * t));
+        let d = target() - position(); // distance to target
+        let t = d.length() / BULLET_SPEED; // how long before our bullets reach the target
+        
+        // calculate the acceleration. 
+        // Note: TICK_LENGTH is the amount of seconds of a single tick
+        // Since we are checking 'v' every tick, then this is the amount of time since the last time we updated 'v'
+        let a = (v - self.prev_v) / TICK_LENGTH;
 
-        // TODO: maybe just have some percent offset for t, instead of recalculating
-        for _ in [..depth_of_calc] {
-            t = (pf - position()).length() / BULLET_SPEED;
-            pf = p0 + v * t + 0.5 * a * t * t;
+        // note that we now account for 'a'
+        let mut p1 = p0 + v * t + 0.5 * a * t.powi(2);
+        
+        for _ in 0..100 {
+            let d = p1 - position();
+            let t = d.length() / BULLET_SPEED;
+            p1 = p0 + v * t  + 0.5 * a * t.powi(2);
         }
 
-        self.prev_target_vel = target_velocity();
-        pf
+        // At the end of our calculate_p1 method, we will update prev_v
+        self.prev_v = v;
+
+        p1
     }
 
     pub fn tick(&mut self) {
+        let p1 = self.calculate_p1();
+        let p1_angle = angle_diff(heading(), p1.angle());
+
+        // draws a green line from our ship to the target ship
+        // this is useful to visualize what is happening
         draw_line(position(), target(), 0x00ff00);
 
-        let target_in_time = self.calc_future_target(100);
-        let target_in_time_ang = angle_diff(heading(), target_in_time.angle());
+        // draws a cyan line to p1 of the target
+        // this is where we should be aiming
+        draw_line(position(), p1, 0x47cbe6);
 
-        draw_line(position(), target_in_time, 0x47cbe6);
-
-        if target_in_time_ang.abs() < degree_to_radian(0.5) {
-            fire(0);
+        // Only fire if we are facing p1
+        // Note: everything is in floats, so p1_angle will never be exactly 0
+        if p1_angle.abs() < degree_to_radian(0.05) {
+            fire(0); // this tell the ship to fire weapon number '0'
         }
-        turn(target_in_time_ang * 100.0);
+
+        // Turn to face the target
+        turn(p1_angle * 100.0);
     }
 }
