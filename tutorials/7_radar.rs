@@ -86,7 +86,7 @@ impl Ship {
             // Turns the radar in a circle until we find a target
             set_radar_heading(radar_heading() + radar_width());
 
-            // Remove old scans, as we have lost, or destoryed, the target
+            // Remove old scans, as we have lost, or destroyed, the target
             self.prev_scan_result = Option::None;
             self.scan_result = Option::None;
         }
